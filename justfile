@@ -30,7 +30,11 @@ build:
 setup:
     -cargo binstall -y --install-path ./target/bin soroban-cli --version 21.0.0-preview.1
 
-test: build
+# Build loam-cli test contracts to speed up testing
+build-cli-test-contracts:
+    cargo run -- build --manifest-path crates/loam-cli/tests/fixtures/soroban-init-boilerplate/Cargo.toml
+
+test: build build-cli-test-contracts
     cargo test
 
 create: build

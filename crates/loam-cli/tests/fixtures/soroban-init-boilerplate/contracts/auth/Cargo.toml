@@ -1,0 +1,17 @@
+[package]
+name = "soroban-auth-contract"
+edition = "2021"
+version = "0.0.0"
+publish = false
+[dependencies.soroban-sdk]
+workspace = true
+[dev-dependencies.soroban-sdk]
+features = ["testutils"]
+workspace = true
+
+[lib]
+path = "src/lib.rs"
+name = "soroban_auth_contract"
+edition = "2021"
+crate-type = ["rlib"]
+required-features = []

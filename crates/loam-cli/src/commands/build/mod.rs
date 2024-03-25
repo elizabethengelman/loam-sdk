@@ -1,4 +1,5 @@
 #![allow(clippy::struct_excessive_bools)]
+use cargo_metadata::{Metadata, MetadataCommand, Package};
 use clap::Parser;
 use itertools::Itertools;
 use std::{
@@ -11,7 +12,7 @@ use std::{
     process::{Command, ExitStatus, Stdio},
 };
 
-use cargo_metadata::{Metadata, MetadataCommand, Package};
+pub mod build_clients;
 
 /// Build a contract from source
 ///
@@ -83,10 +84,12 @@ pub enum Error {
     GettingCurrentDir(io::Error),
     #[error(transparent)]
     Loam(#[from] loam_build::deps::Error),
+    #[error(transparent)]
+    BuildClients(#[from] build_clients::Error),
 }
 
 impl Cmd {
-    pub fn run(&self) -> Result<(), Error> {
+    pub async fn run(&self) -> Result<(), Error> {
         let working_dir = env::current_dir().map_err(Error::GettingCurrentDir)?;
         let metadata = self.metadata()?;
         let packages = self.packages(&metadata)?;
@@ -170,6 +173,8 @@ impl Cmd {
                 }
             }
         }
+
+        build_clients::Cmd {}.run().await?;
 
         Ok(())
     }
