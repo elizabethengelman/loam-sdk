@@ -39,9 +39,10 @@ impl Root {
     {
         Self::from_arg_matches_mut(&mut Self::command().get_matches_from(itr))
     }
-    pub async fn run(&mut self) -> Result<(), Error> {
+    pub fn run(&mut self) -> Result<(), Error> {
         match &mut self.cmd {
-            Cmd::Build(build_info) => build_info.run().await?,
+            Cmd::Init(init_info) => init_info.run()?,
+            Cmd::Build(build_info) => build_info.run()?,
             Cmd::UpdateEnv(e) => e.run()?,
         };
         Ok(())
@@ -58,11 +59,13 @@ impl FromStr for Root {
 
 #[derive(Parser, Debug)]
 pub enum Cmd {
-    /// Build contracts, resolving Loam dependencies in the correct order. If you have an `environments.toml` file, it will also follow its instructions to configure the environment set by the `LOAM_ENV` environment variable, turning your contracts into frontend packages (NPM dependencies).
+    /// Initialize the project
+    Init(init::Cmd),
+    /// Build contracts
     Build(build::Cmd),
-
     /// Update an environment variable in a .env file
     UpdateEnv(update_env::Cmd),
+    
 }
 
 #[derive(thiserror::Error, Debug)]
