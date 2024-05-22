@@ -1,6 +1,5 @@
 use soroban_cli::commands::contract::init as soroban_init;
-// use std::path::Path;
-// use std::io;
+use std::io;
 
 use clap::Parser;
 
@@ -15,9 +14,10 @@ pub struct Cmd {
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error(transparent)]
-    SorobanInit(#[from] soroban_init::Error),
-
+    #[error("Io error: {0}")]
+    IoError(#[from] io::Error),
+    #[error("Soroban init error: {0}")]
+    SorobanInitError(#[from] soroban_init::Error),
 }
 
 impl Cmd {

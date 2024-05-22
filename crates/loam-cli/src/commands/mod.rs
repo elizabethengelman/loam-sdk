@@ -1,7 +1,5 @@
 use std::str::FromStr;
 
-use soroban_cli::commands::contract::init as soroban_init;
-
 use clap::{command, CommandFactory, FromArgMatches, Parser};
 
 pub mod build;
@@ -73,6 +71,8 @@ pub enum Error {
     // TODO: stop using Debug for displaying errors
     #[error(transparent)]
     BuildContracts(#[from] build::Error),
+    #[error(transparent)]
+    Init(#[from] init::Error),
     #[error(transparent)]
     UpdateEnv(#[from] update_env::Error),
 }
