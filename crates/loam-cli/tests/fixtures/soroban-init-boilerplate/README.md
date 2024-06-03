@@ -1,18 +1,22 @@
 # Soroban Project
 
-Generated using `soroban-cli` at commit `1c08651eb2b3bc8e66087207b1806b95dbb32ba5` with the following command:
+This boilerplate was created with `soroban-cli` @ `8c17d747c95ad6e7fd649053c9516fa4067ae509` using this command:
 
-    DIR=crates/loam-cli/tests/fixtures/soroban-init-boilerplate && \
-      soroban contract init "$DIR" \
-      -w increment \
-      -w custom_types \
-      -w auth \
-      --frontend-template https://github.com/stellar/soroban-astro-template && \
-      cargo run -- build --manifest-path "$DIR"/Cargo.toml
+```bash
+rm -rf crates/loam-cli/tests/fixtures/soroban-init-boilerplate &&
+DIR=crates/loam-cli/tests/fixtures/soroban-init-boilerplate &&
+soroban contract init "$DIR" \
+   -w increment \
+   -w custom_types \
+   -w auth \
+   --frontend-template https://github.com/stellar/soroban-astro-template &&
+cargo run -- build --manifest-path "$DIR"/Cargo.toml
+```
 
 ## Project Structure
 
 This repository uses the recommended structure for a Soroban project:
+
 ```text
 .
 ├── contracts
@@ -31,6 +35,7 @@ This repository uses the recommended structure for a Soroban project:
 - Frontend libraries can be added to the top-level directory as well. If you initialized this project with a frontend template via `--frontend-template` you will have those files already included.
 
 ---
+
 <!-- The following is the Frontend Template's README.md -->
 
 # Soroban Frontend in Astro

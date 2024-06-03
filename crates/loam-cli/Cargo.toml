@@ -53,7 +53,6 @@ shlex = "1.1.0"
 symlink = "0.1.0"
 toml = { version = "0.8.12", features = ["parse"] }
 soroban-cli = { git = "https://github.com/AhaLabs/soroban-cli.git", rev = "8a24ff27c96d4b1244686798fc8f321ecdb7da5b" }
-futures = "0.3.30"
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
