@@ -174,7 +174,11 @@ impl Cmd {
             }
         }
 
-        build_clients::Cmd {}.run().await?;
+        build_clients::Cmd {
+            workspace_root: metadata.workspace_root.into_std_path_buf(),
+        }
+        .run()
+        .await?;
 
         Ok(())
     }

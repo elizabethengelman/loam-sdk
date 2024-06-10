@@ -5,15 +5,16 @@ use soroban_cli::{commands as cli, fee, wasm};
 use std::collections::BTreeMap as Map;
 use std::io::Write;
 use std::ops::Deref;
-use std::{env, fmt::Debug, io};
+use std::{fmt::Debug, io};
 
 #[derive(Parser, Debug, Clone)]
-pub struct Cmd {}
+pub struct Cmd {
+    #[arg(long, default_value = ".")]
+    pub workspace_root: std::path::PathBuf,
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("⛔ ️getting the current directory: {0}")]
-    GettingCurrentDir(io::Error),
     #[error("⛔ ️parsing environments.toml: {0}")]
     ParsingToml(io::Error),
     #[error("⛔ ️invalid network: must either specify a network name or both network_passphrase and rpc_url")]
@@ -71,8 +72,7 @@ const CURRENT_ENV: &str = "development";
 
 impl Cmd {
     pub async fn run(&self) -> Result<(), Error> {
-        let working_dir = env::current_dir().map_err(Error::GettingCurrentDir)?;
-        let env_toml = working_dir.join("environments.toml");
+        let env_toml = self.workspace_root.join("environments.toml");
 
         if !env_toml.exists() {
             return Ok(());
@@ -143,7 +143,7 @@ impl Cmd {
                     );
                     let hash = cli::contract::install::Cmd {
                         wasm: wasm::Args {
-                            wasm: working_dir.join(format!("target/loam/{name}.wasm")),
+                            wasm: self.workspace_root.join(format!("target/loam/{name}.wasm")),
                         },
                         fee: fee::Args {
                             fee: 100u32,
