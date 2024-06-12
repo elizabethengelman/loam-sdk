@@ -28,6 +28,8 @@ pub enum Error {
     OnlyOneDefaultAccount(Vec<String>),
     #[error("⛔ ️you need to provide at least one account, to use as the source account for contract deployment and other operations")]
     NeedAtLeastOneAccount,
+    #[error("⛔ ️No contract named {0:?}")]
+    BadContractName(String),
     #[error(transparent)]
     ContractInstall(#[from] cli::contract::install::Error),
     #[error(transparent)]
@@ -187,14 +189,14 @@ impl Cmd {
         let contracts = contracts.as_ref().unwrap();
         for (name, settings) in contracts {
             if settings.workspace.unwrap_or(false) {
+                let wasm_path = &self.workspace_root.join(format!("target/loam/{name}.wasm"));
+                if !wasm_path.exists() {
+                    return Err(Error::BadContractName(name.to_string()));
+                }
                 println!("📲 installing {:?} wasm bytecode on-chain...", name.clone());
                 let hash = cli::contract::install::Cmd::parse_arg_vec(&[
                     "--wasm",
-                    &self
-                        .workspace_root
-                        .join(format!("target/loam/{name}.wasm"))
-                        .to_str()
-                        .unwrap(),
+                    wasm_path.to_str().unwrap(),
                 ])
                 .unwrap()
                 .run_against_rpc_server(None, None)

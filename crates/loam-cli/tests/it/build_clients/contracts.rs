@@ -71,26 +71,27 @@ network-passphrase = "Standalone Network ; February 2017"
     });
 }
 
-// #[test]
-// fn contract_with_bad_name_prints_useful_error() {
-//     TestEnv::from("soroban-init-boilerplate", |env| {
-//         env.set_environments_toml(
-//             r#"
-// development.accounts = [
-//     { name = "alice" },
-// ]
-//
-// [development.network]
-// rpc-url = "http://localhost:8000"
-// network-passphrase = "Standalone Network ; February 2017"
-//
-// development.contracts.hello.workspace = true
-// "#,
-//         );
-//
-//         env.loam("build")
-//             .assert()
-//             .failure()
-//             .stderr(predicates::str::contains("No contract named \"hello\"!"));
-//     });
-// }
+#[test]
+fn contract_with_bad_name_prints_useful_error() {
+    TestEnv::from("soroban-init-boilerplate", |env| {
+        env.set_environments_toml(
+            r#"
+development.accounts = [
+    { name = "alice" },
+]
+
+[development.network]
+rpc-url = "http://localhost:8000/rpc"
+network-passphrase = "Standalone Network ; February 2017"
+
+[development.contracts]
+hello.workspace = true
+"#,
+        );
+
+        env.loam("build")
+            .assert()
+            .failure()
+            .stderr(predicates::str::contains("No contract named \"hello\""));
+    });
+}
