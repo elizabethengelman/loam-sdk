@@ -19,7 +19,7 @@ network-passphrase = "Standalone Network ; February 2017"
             .assert()
             .success()
             .stdout(predicates::str::contains(
-                "🌐 using network at http://localhost:8000\n",
+                "🌐 using network at http://localhost:8000/rpc\n",
             ));
     });
 }

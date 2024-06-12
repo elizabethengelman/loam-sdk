@@ -1,7 +1,7 @@
 #![allow(clippy::struct_excessive_bools)]
 use clap::Parser;
 use soroban_cli::commands::NetworkRunnable;
-use soroban_cli::{commands as cli, fee, wasm, CommandParser};
+use soroban_cli::{commands as cli, CommandParser};
 use std::collections::BTreeMap as Map;
 use std::ops::Deref;
 use std::{fmt::Debug, io};
@@ -16,8 +16,12 @@ pub struct Cmd {
 pub enum Error {
     #[error("⛔ ️parsing environments.toml: {0}")]
     ParsingToml(io::Error),
+    #[error("⛔ ️no settings for current LOAM_ENV ({CURRENT_ENV:?}) found in environments.toml")]
+    NoSettingsForCurrentEnv,
     #[error("⛔ ️invalid network: must either specify a network name or both network_passphrase and rpc_url")]
     MalformedNetwork,
+    #[error(transparent)]
+    ParsingNetwork(#[from] cli::network::Error),
     #[error(transparent)]
     GeneratingKey(#[from] cli::keys::generate::Error),
     #[error("⛔ ️can only have one default account; marked as default: {0:?}")]
@@ -83,142 +87,159 @@ impl Cmd {
 
         let toml_str = std::fs::read_to_string(env_toml).map_err(Error::ParsingToml)?;
         let parsed_toml: Environments = toml::from_str(&toml_str).unwrap();
-        let current_env = parsed_toml.get(CURRENT_ENV).unwrap();
+        let current_env = parsed_toml.get(CURRENT_ENV);
+        if current_env.is_none() {
+            return Err(Error::NoSettingsForCurrentEnv);
+        };
+        let current_env = current_env.unwrap();
 
-        let rpc_url = &current_env.network.rpc_url;
-        let network_passphrase = &current_env.network.network_passphrase;
-        let network = &current_env.network.name;
+        self.add_network_to_env(&current_env.network)?;
+        self.handle_accounts(&current_env.accounts).await?;
+        self.handle_contracts(&current_env.contracts).await?;
 
-        if let Some(name) = network {
+        Ok(())
+    }
+
+    /// Parse the network settings from the environments.toml file and set STELLAR_RPC_URL and
+    /// STELLAR_NETWORK_PASSPHRASE.
+    ///
+    /// We could set STELLAR_NETWORK instead, but when importing contracts, we want to hard-code
+    /// the network passphrase. So if given a network name, we use soroban-cli to fetch the RPC url
+    /// & passphrase for that named network, and still set the environment variables.
+    fn add_network_to_env(&self, network: &Network) -> Result<(), Error> {
+        let rpc_url = &network.rpc_url;
+        let network_passphrase = &network.network_passphrase;
+        let network_name = &network.name;
+
+        if let Some(name) = network_name {
+            let cli::network::Network {
+                rpc_url,
+                network_passphrase,
+            } = (cli::network::Args {
+                network: Some(name.clone()),
+                rpc_url: None,
+                network_passphrase: None,
+            })
+            .get(&cli::config::locator::Args {
+                global: false,
+                config_dir: None,
+            })?;
             println!("🌐 using {name} network");
+            std::env::set_var("STELLAR_RPC_URL", rpc_url);
+            std::env::set_var("STELLAR_NETWORK_PASSPHRASE", network_passphrase);
         } else if let Some(rpc_url) = rpc_url {
-            println!("🌐 using network at {rpc_url}");
+            if let Some(passphrase) = network_passphrase {
+                std::env::set_var("STELLAR_RPC_URL", rpc_url);
+                std::env::set_var("STELLAR_NETWORK_PASSPHRASE", passphrase);
+                println!("🌐 using network at {rpc_url}");
+            } else {
+                return Err(Error::MalformedNetwork);
+            }
         }
 
-        let default_account = if let Some(accounts) = &current_env.accounts {
-            let default_account_candidates = accounts
-                .iter()
-                .filter_map(|account| {
-                    account
-                        .default
-                        .unwrap_or(false)
-                        .then(|| account.name.clone())
-                })
-                .collect::<Vec<_>>();
-            let default_account = match default_account_candidates.len() {
-                0 if accounts.is_empty() => return Err(Error::NeedAtLeastOneAccount),
-                0 => accounts[0].name.clone(),
-                1 => default_account_candidates[0].to_string(),
-                _ => return Err(Error::OnlyOneDefaultAccount(default_account_candidates)),
-            };
-            for account in accounts {
-                println!("🔐 creating keys for {:?}", account.name);
-                cli::keys::generate::Cmd {
-                    name: account.name.clone(),
-                    no_fund: false,
-                    seed: None,
-                    as_secret: false,
-                    config_locator: cli::config::locator::Args {
-                        global: false,
-                        config_dir: None,
-                    },
-                    hd_path: None,
-                    default_seed: false,
-                    network: cli::network::Args {
-                        rpc_url: rpc_url.clone(),
-                        network_passphrase: network_passphrase.clone(),
-                        network: network.clone(),
-                    },
-                }
+        Ok(())
+    }
+
+    async fn handle_accounts(&self, accounts: &Option<Vec<Account>>) -> Result<(), Error> {
+        if accounts.is_none() {
+            return Err(Error::NeedAtLeastOneAccount);
+        }
+
+        let accounts = accounts.as_ref().unwrap();
+
+        let default_account_candidates = accounts
+            .iter()
+            .filter_map(|account| {
+                account
+                    .default
+                    .unwrap_or(false)
+                    .then(|| account.name.clone())
+            })
+            .collect::<Vec<_>>();
+
+        let default_account = match default_account_candidates.len() {
+            0 if accounts.is_empty() => return Err(Error::NeedAtLeastOneAccount),
+            0 => accounts[0].name.clone(),
+            1 => default_account_candidates[0].to_string(),
+            _ => return Err(Error::OnlyOneDefaultAccount(default_account_candidates)),
+        };
+
+        for account in accounts {
+            println!("🔐 creating keys for {:?}", account.name);
+            cli::keys::generate::Cmd::parse_arg_vec(&[&account.name])
+                .unwrap()
                 .run()
                 .await?
-            }
-            default_account
-        } else {
-            return Err(Error::NeedAtLeastOneAccount);
-        };
-        if let Some(contracts) = &current_env.contracts {
-            for (name, settings) in contracts {
-                if settings.workspace.unwrap_or(false) {
-                    println!("📲 installing {:?} wasm bytecode on-chain...", name.clone());
-                    let hash = cli::contract::install::Cmd {
-                        wasm: wasm::Args {
-                            wasm: self.workspace_root.join(format!("target/loam/{name}.wasm")),
-                        },
-                        fee: fee::Args {
-                            fee: 100u32,
-                            cost: false,
-                            instructions: None,
-                            build_only: false,
-                            sim_only: false,
-                        },
-                        config: cli::config::Args {
-                            source_account: default_account.clone(),
-                            hd_path: None,
-                            locator: cli::config::locator::Args {
-                                global: false,
-                                config_dir: None,
-                            },
-                            network: cli::network::Args {
-                                rpc_url: rpc_url.clone(),
-                                network_passphrase: network_passphrase.clone(),
-                                network: network.clone(),
-                            },
-                        },
-                        ignore_checks: false,
-                    }
-                    .run_against_rpc_server(None, None)
-                    .await?
-                    .into_result()
-                    .unwrap()
-                    .to_string();
-                    println!("    ↳ hash: {hash}");
-                    println!("🪞 instantiating {:?} smart contract", name.clone());
-                    //  TODO: check if hash is already the installed version, skip the rest if so
-                    let contract_id = cli::contract::deploy::wasm::Cmd::parse_arg_vec(&[
-                        "--wasm-hash",
-                        &hash,
-                        "--source-account",
-                        &default_account,
-                        "--rpc-url",
-                        rpc_url.as_deref().unwrap(),
-                        "--network-passphrase",
-                        network_passphrase.as_deref().unwrap(),
-                    ])
-                    .unwrap()
-                    .run_against_rpc_server(None, None)
-                    .await?
-                    .into_result()
-                    .unwrap();
-                    // TODO: save the contract id for use in subsequent runs
-                    println!("    ↳ contract_id: {contract_id}");
-                    println!("🎭 binding {:?} contract", name.clone());
-                    cli::contract::bindings::typescript::Cmd::parse_arg_vec(&[
-                        "--contract-id",
-                        &contract_id,
-                        "--rpc-url",
-                        rpc_url.as_deref().unwrap(),
-                        "--network-passphrase",
-                        network_passphrase.as_deref().unwrap(),
-                        "--output-dir",
-                        self.workspace_root
-                            .join(format!("packages/{}", name.clone()))
-                            .to_str()
-                            .unwrap(),
-                        "--overwrite",
-                    ])
-                    .unwrap()
-                    .run()
-                    .await?;
-                    println!("🍽️ importing {:?} contract", name.clone());
-                    let allow_http = if CURRENT_ENV == "development" {
-                        "\n  allowHttp: true,"
-                    } else {
-                        ""
-                    };
-                    let network = network_passphrase.as_deref().unwrap();
-                    let template = format!(
-                        r#"import * as Client from '{name}';
+        }
+
+        std::env::set_var("STELLAR_ACCOUNT", &default_account);
+
+        Ok(())
+    }
+
+    async fn handle_contracts(
+        &self,
+        contracts: &Option<Map<Box<str>, Contract>>,
+    ) -> Result<(), Error> {
+        if contracts.is_none() {
+            return Ok(());
+        }
+        let contracts = contracts.as_ref().unwrap();
+        for (name, settings) in contracts {
+            if settings.workspace.unwrap_or(false) {
+                println!("📲 installing {:?} wasm bytecode on-chain...", name.clone());
+                let hash = cli::contract::install::Cmd::parse_arg_vec(&[
+                    "--wasm",
+                    &self
+                        .workspace_root
+                        .join(format!("target/loam/{name}.wasm"))
+                        .to_str()
+                        .unwrap(),
+                ])
+                .unwrap()
+                .run_against_rpc_server(None, None)
+                .await?
+                .into_result()
+                .unwrap()
+                .to_string();
+                println!("    ↳ hash: {hash}");
+
+                println!("🪞 instantiating {:?} smart contract", name.clone());
+                //  TODO: check if hash is already the installed version, skip the rest if so
+                let contract_id =
+                    cli::contract::deploy::wasm::Cmd::parse_arg_vec(&["--wasm-hash", &hash])
+                        .unwrap()
+                        .run_against_rpc_server(None, None)
+                        .await?
+                        .into_result()
+                        .unwrap();
+                // TODO: save the contract id for use in subsequent runs
+                println!("    ↳ contract_id: {contract_id}");
+
+                println!("🎭 binding {:?} contract", name.clone());
+                cli::contract::bindings::typescript::Cmd::parse_arg_vec(&[
+                    "--contract-id",
+                    &contract_id,
+                    "--output-dir",
+                    self.workspace_root
+                        .join(format!("packages/{}", name.clone()))
+                        .to_str()
+                        .unwrap(),
+                    "--overwrite",
+                ])
+                .unwrap()
+                .run()
+                .await?;
+
+                println!("🍽️ importing {:?} contract", name.clone());
+                let allow_http = if CURRENT_ENV == "development" {
+                    "\n  allowHttp: true,"
+                } else {
+                    ""
+                };
+                let network = std::env::var("STELLAR_NETWORK_PASSPHRASE").unwrap();
+                let template = format!(
+                    r#"import * as Client from '{name}';
 import {{ rpcUrl }} from './util';
 
 export default new Client.Client({{
@@ -228,12 +249,12 @@ export default new Client.Client({{
   publicKey: undefined,
 }});
 "#
-                    );
-                    let path = self.workspace_root.join(format!("src/contracts/{name}.ts"));
-                    std::fs::write(path, template).unwrap();
-                };
-            }
+                );
+                let path = self.workspace_root.join(format!("src/contracts/{name}.ts"));
+                std::fs::write(path, template).unwrap();
+            };
         }
+
         Ok(())
     }
 }
