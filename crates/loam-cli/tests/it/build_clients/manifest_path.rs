@@ -10,7 +10,7 @@ development.accounts = [
 ]
 
 [development.network]
-rpc-url = "http://localhost:8000"
+rpc-url = "http://localhost:8000/rpc"
 network-passphrase = "Standalone Network ; February 2017"
 "#,
         );
