@@ -50,7 +50,7 @@ pub struct Contract {
 }
 
 impl Environment {
-    pub fn get(workspace_root: &PathBuf, loam_env: &str) -> Result<Option<Environment>, Error> {
+    pub fn get(workspace_root: &PathBuf, loam_env: String) -> Result<Option<Environment>, Error> {
         let env_toml = workspace_root.join("environments.toml");
 
         if !env_toml.exists() {
@@ -59,9 +59,9 @@ impl Environment {
 
         let toml_str = std::fs::read_to_string(env_toml).map_err(Error::ParsingToml)?;
         let parsed_toml: Environments = toml::from_str(&toml_str).unwrap();
-        let current_env = parsed_toml.get(loam_env);
+        let current_env = parsed_toml.get(loam_env.as_str());
         if current_env.is_none() {
-            return Err(Error::NoSettingsForCurrentEnv(loam_env.to_string()));
+            return Err(Error::NoSettingsForCurrentEnv(loam_env));
         };
         Ok(current_env.cloned())
     }

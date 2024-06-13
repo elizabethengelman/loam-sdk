@@ -6,14 +6,20 @@ use soroban_cli::{commands as cli, CommandParser};
 use std::collections::BTreeMap as Map;
 use std::fmt::Debug;
 
-const DEFAULT_ENV: &str = "production";
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, clap::ValueEnum)]
+pub enum LoamEnv {
+    Development,
+    Testing,
+    Staging,
+    Production,
+}
 
 #[derive(Parser, Debug, Clone)]
 pub struct Cmd {
     #[arg(long, default_value = ".")]
     pub workspace_root: std::path::PathBuf,
-    #[arg(env = "LOAM_ENV", default_value = DEFAULT_ENV)]
-    pub env: Option<String>,
+    #[arg(env = "LOAM_ENV", value_enum, default_value = "production")]
+    pub env: LoamEnv,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -57,8 +63,8 @@ impl Cmd {
         Ok(())
     }
 
-    fn loam_env(&self) -> &str {
-        self.env.as_deref().unwrap_or(DEFAULT_ENV)
+    fn loam_env(&self) -> String {
+        format!("{:?}", self.env).to_lowercase()
     }
 
     /// Parse the network settings from the environments.toml file and set STELLAR_RPC_URL and

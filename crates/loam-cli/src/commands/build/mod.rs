@@ -65,6 +65,8 @@ pub struct Cmd {
     /// Print commands to build without executing them
     #[arg(long, conflicts_with = "out_dir", help_heading = "Other")]
     pub print_commands_only: bool,
+    #[arg(env = "LOAM_ENV", value_enum, default_value = "production")]
+    pub env: build_clients::LoamEnv,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -177,7 +179,7 @@ impl Cmd {
 
         build_clients::Cmd {
             workspace_root: metadata.workspace_root.into_std_path_buf(),
-            env: None,
+            env: self.env,
         }
         .run()
         .await?;
