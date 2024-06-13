@@ -1,23 +1,25 @@
 #![allow(clippy::struct_excessive_bools)]
+use crate::commands::build::environments_toml;
 use clap::Parser;
 use soroban_cli::commands::NetworkRunnable;
 use soroban_cli::{commands as cli, CommandParser};
 use std::collections::BTreeMap as Map;
-use std::ops::Deref;
-use std::{fmt::Debug, io};
+use std::fmt::Debug;
+
+const DEFAULT_ENV: &str = "production";
 
 #[derive(Parser, Debug, Clone)]
 pub struct Cmd {
     #[arg(long, default_value = ".")]
     pub workspace_root: std::path::PathBuf,
+    #[arg(env = "LOAM_ENV", default_value = DEFAULT_ENV)]
+    pub env: Option<String>,
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("⛔ ️parsing environments.toml: {0}")]
-    ParsingToml(io::Error),
-    #[error("⛔ ️no settings for current LOAM_ENV ({CURRENT_ENV:?}) found in environments.toml")]
-    NoSettingsForCurrentEnv,
+    #[error(transparent)]
+    EnvironmentsToml(#[from] environments_toml::Error),
     #[error("⛔ ️invalid network: must either specify a network name or both network_passphrase and rpc_url")]
     MalformedNetwork,
     #[error(transparent)]
@@ -38,61 +40,14 @@ pub enum Error {
     ContractBindings(#[from] cli::contract::bindings::typescript::Error),
 }
 
-#[derive(Debug, serde::Deserialize)]
-struct Environments(Map<Box<str>, Environment>);
-
-impl Deref for Environments {
-    type Target = Map<Box<str>, Environment>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct Environment {
-    accounts: Option<Vec<Account>>,
-    network: Network,
-    contracts: Option<Map<Box<str>, Contract>>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct Network {
-    name: Option<String>,
-    rpc_url: Option<String>,
-    network_passphrase: Option<String>,
-    // run_locally: Option<bool>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct Account {
-    name: String,
-    default: Option<bool>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct Contract {
-    workspace: Option<bool>,
-}
-
-// TODO: get from environment
-const CURRENT_ENV: &str = "development";
-
 impl Cmd {
     pub async fn run(&self) -> Result<(), Error> {
-        let env_toml = self.workspace_root.join("environments.toml");
+        let current_env =
+            environments_toml::Environment::get(&self.workspace_root, self.loam_env())?;
 
-        if !env_toml.exists() {
+        if current_env.is_none() {
             return Ok(());
         }
-
-        let toml_str = std::fs::read_to_string(env_toml).map_err(Error::ParsingToml)?;
-        let parsed_toml: Environments = toml::from_str(&toml_str).unwrap();
-        let current_env = parsed_toml.get(CURRENT_ENV);
-        if current_env.is_none() {
-            return Err(Error::NoSettingsForCurrentEnv);
-        };
         let current_env = current_env.unwrap();
 
         self.add_network_to_env(&current_env.network)?;
@@ -102,13 +57,17 @@ impl Cmd {
         Ok(())
     }
 
+    fn loam_env(&self) -> &str {
+        self.env.as_deref().unwrap_or(DEFAULT_ENV)
+    }
+
     /// Parse the network settings from the environments.toml file and set STELLAR_RPC_URL and
     /// STELLAR_NETWORK_PASSPHRASE.
     ///
     /// We could set STELLAR_NETWORK instead, but when importing contracts, we want to hard-code
     /// the network passphrase. So if given a network name, we use soroban-cli to fetch the RPC url
     /// & passphrase for that named network, and still set the environment variables.
-    fn add_network_to_env(&self, network: &Network) -> Result<(), Error> {
+    fn add_network_to_env(&self, network: &environments_toml::Network) -> Result<(), Error> {
         let rpc_url = &network.rpc_url;
         let network_passphrase = &network.network_passphrase;
         let network_name = &network.name;
@@ -142,7 +101,10 @@ impl Cmd {
         Ok(())
     }
 
-    async fn handle_accounts(&self, accounts: &Option<Vec<Account>>) -> Result<(), Error> {
+    async fn handle_accounts(
+        &self,
+        accounts: &Option<Vec<environments_toml::Account>>,
+    ) -> Result<(), Error> {
         if accounts.is_none() {
             return Err(Error::NeedAtLeastOneAccount);
         }
@@ -181,7 +143,7 @@ impl Cmd {
 
     async fn handle_contracts(
         &self,
-        contracts: &Option<Map<Box<str>, Contract>>,
+        contracts: &Option<Map<Box<str>, environments_toml::Contract>>,
     ) -> Result<(), Error> {
         if contracts.is_none() {
             return Ok(());
@@ -234,7 +196,7 @@ impl Cmd {
                 .await?;
 
                 println!("🍽️ importing {:?} contract", name.clone());
-                let allow_http = if CURRENT_ENV == "development" {
+                let allow_http = if self.loam_env() == "development" {
                     "\n  allowHttp: true,"
                 } else {
                     ""

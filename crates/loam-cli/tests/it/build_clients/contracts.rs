@@ -13,15 +13,15 @@ fn contracts_built() {
         env.set_environments_toml(
             format!(
                 r#"
-development.accounts = [
+production.accounts = [
     {{ name = "alice" }},
 ]
 
-[development.network]
+[production.network]
 rpc-url = "http://localhost:8000/rpc"
 network-passphrase = "Standalone Network ; February 2017"
 
-[development.contracts]
+[production.contracts]
 {}
 "#,
                 contracts
@@ -76,15 +76,15 @@ fn contract_with_bad_name_prints_useful_error() {
     TestEnv::from("soroban-init-boilerplate", |env| {
         env.set_environments_toml(
             r#"
-development.accounts = [
+production.accounts = [
     { name = "alice" },
 ]
 
-[development.network]
+[production.network]
 rpc-url = "http://localhost:8000/rpc"
 network-passphrase = "Standalone Network ; February 2017"
 
-[development.contracts]
+[production.contracts]
 hello.workspace = true
 "#,
         );

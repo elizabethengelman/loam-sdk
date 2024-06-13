@@ -13,6 +13,7 @@ use std::{
 };
 
 pub mod build_clients;
+pub mod environments_toml;
 
 /// Build a contract from source
 ///
@@ -176,6 +177,7 @@ impl Cmd {
 
         build_clients::Cmd {
             workspace_root: metadata.workspace_root.into_std_path_buf(),
+            env: None,
         }
         .run()
         .await?;

@@ -4,7 +4,7 @@ use crate::util::TestEnv;
 fn create_two_accounts() {
     TestEnv::from("soroban-init-boilerplate", |env| {
         env.set_environments_toml(r#"
-[development]
+[production]
 network = { rpc-url = "http://localhost:8000/rpc", network-passphrase = "Standalone Network ; February 2017"}
 
 accounts = [
