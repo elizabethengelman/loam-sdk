@@ -13,7 +13,7 @@ use std::{
 };
 
 pub mod build_clients;
-pub mod environments_toml;
+pub mod env_toml;
 
 /// Build a contract from source
 ///

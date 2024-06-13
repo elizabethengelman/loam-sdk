@@ -1,5 +1,5 @@
 #![allow(clippy::struct_excessive_bools)]
-use crate::commands::build::environments_toml;
+use crate::commands::build::env_toml;
 use clap::Parser;
 use soroban_cli::commands::NetworkRunnable;
 use soroban_cli::{commands as cli, CommandParser};
@@ -25,7 +25,7 @@ pub struct Cmd {
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error(transparent)]
-    EnvironmentsToml(#[from] environments_toml::Error),
+    EnvironmentsToml(#[from] env_toml::Error),
     #[error("⛔ ️invalid network: must either specify a network name or both network_passphrase and rpc_url")]
     MalformedNetwork,
     #[error(transparent)]
@@ -48,8 +48,7 @@ pub enum Error {
 
 impl Cmd {
     pub async fn run(&self) -> Result<(), Error> {
-        let current_env =
-            environments_toml::Environment::get(&self.workspace_root, self.loam_env())?;
+        let current_env = env_toml::Environment::get(&self.workspace_root, self.loam_env())?;
 
         if current_env.is_none() {
             return Ok(());
@@ -73,7 +72,7 @@ impl Cmd {
     /// We could set STELLAR_NETWORK instead, but when importing contracts, we want to hard-code
     /// the network passphrase. So if given a network name, we use soroban-cli to fetch the RPC url
     /// & passphrase for that named network, and still set the environment variables.
-    fn add_network_to_env(&self, network: &environments_toml::Network) -> Result<(), Error> {
+    fn add_network_to_env(&self, network: &env_toml::Network) -> Result<(), Error> {
         let rpc_url = &network.rpc_url;
         let network_passphrase = &network.network_passphrase;
         let network_name = &network.name;
@@ -109,7 +108,7 @@ impl Cmd {
 
     async fn handle_accounts(
         &self,
-        accounts: &Option<Vec<environments_toml::Account>>,
+        accounts: &Option<Vec<env_toml::Account>>,
     ) -> Result<(), Error> {
         if accounts.is_none() {
             return Err(Error::NeedAtLeastOneAccount);
@@ -149,7 +148,7 @@ impl Cmd {
 
     async fn handle_contracts(
         &self,
-        contracts: &Option<Map<Box<str>, environments_toml::Contract>>,
+        contracts: &Option<Map<Box<str>, env_toml::Contract>>,
     ) -> Result<(), Error> {
         if contracts.is_none() {
             return Ok(());
