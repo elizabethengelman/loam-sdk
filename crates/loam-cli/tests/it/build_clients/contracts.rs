@@ -1,5 +1,4 @@
-use crate::util::TestEnv;
-use predicates::prelude::*;
+use crate::util::{AssertExt, TestEnv};
 
 #[test]
 fn contracts_built() {
@@ -33,32 +32,16 @@ network-passphrase = "Standalone Network ; February 2017"
             .as_str(),
         );
 
-        let mut contract_stdout_predicates = contracts
-            .iter()
-            .map(|c| {
-                predicates::str::contains(format!("installing \"{c}\" wasm bytecode on-chain"))
-                    .and(predicates::str::contains(format!(
-                        "instantiating \"{c}\" smart contract"
-                    )))
-                    .and(predicates::str::contains(format!(
-                        "binding \"{c}\" contract"
-                    )))
-                    .and(predicates::str::contains(format!(
-                        "importing \"{c}\" contract"
-                    )))
-            })
-            .collect::<Vec<_>>();
+        let stdout = env.loam("build").assert().success().stdout_as_str();
+        assert!(stdout.contains("creating keys for \"alice\"\n"));
+        assert!(stdout.contains("using network at http://localhost:8000/rpc\n"));
 
-        env.loam("build").assert().success().stdout(
-            predicates::str::contains("creating keys for \"alice\"\n")
-                .and(predicates::str::contains(
-                    "using network at http://localhost:8000/rpc\n",
-                ))
-                .and(contract_stdout_predicates.pop().unwrap())
-                .and(contract_stdout_predicates.pop().unwrap())
-                .and(contract_stdout_predicates.pop().unwrap())
-                .and(contract_stdout_predicates.pop().unwrap()),
-        );
+        for c in contracts {
+            assert!(stdout.contains(&format!("installing \"{c}\" wasm bytecode on-chain")));
+            assert!(stdout.contains(&format!("instantiating \"{c}\" smart contract")));
+            assert!(stdout.contains(&format!("binding \"{c}\" contract")));
+            assert!(stdout.contains(&format!("importing \"{c}\" contract")));
+        }
 
         // check that contracts are actually deployed, bound, and imported
         for contract in contracts {

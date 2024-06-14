@@ -1,4 +1,4 @@
-use crate::util::TestEnv;
+use crate::util::{AssertExt, TestEnv};
 
 #[test]
 fn run_network_from_rpc_and_passphrase() {
@@ -15,12 +15,8 @@ network-passphrase = "Standalone Network ; February 2017"
 "#,
         );
 
-        env.loam("build")
-            .assert()
-            .success()
-            .stdout(predicates::str::contains(
-                "🌐 using network at http://localhost:8000/rpc\n",
-            ));
+        let stdout = env.loam("build").assert().success().stdout_as_str();
+        assert!(stdout.contains("🌐 using network at http://localhost:8000/rpc\n"));
     });
 }
 
@@ -50,9 +46,7 @@ production.network.name = "lol"
 "#,
         );
 
-        env.loam("build")
-            .assert()
-            .success()
-            .stdout(predicates::str::contains("🌐 using lol network\n"));
+        let stdout = env.loam("build").assert().success().stdout_as_str();
+        assert!(stdout.contains("🌐 using lol network\n"));
     });
 }

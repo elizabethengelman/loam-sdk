@@ -126,10 +126,10 @@ impl Cmd {
             })
             .collect::<Vec<_>>();
 
-        let default_account = match default_account_candidates.len() {
-            0 if accounts.is_empty() => return Err(Error::NeedAtLeastOneAccount),
-            0 => accounts[0].name.clone(),
-            1 => default_account_candidates[0].to_string(),
+        let default_account = match (default_account_candidates.as_slice(), accounts.as_slice()) {
+            ([], []) => return Err(Error::NeedAtLeastOneAccount),
+            ([], [env_toml::Account { name, .. }, ..]) => name.clone(),
+            ([candidate], _) => candidate.to_string(),
             _ => return Err(Error::OnlyOneDefaultAccount(default_account_candidates)),
         };
 

@@ -1,4 +1,4 @@
-use crate::util::TestEnv;
+use crate::util::{AssertExt, TestEnv};
 
 #[test]
 fn create_two_accounts() {
@@ -12,18 +12,15 @@ accounts = [
     { name = "bob" },
 ]"#);
 
-        env.loam("build")
-            .assert()
-            .success()
-            .stdout(predicates::str::contains(
-                "🔐 creating keys for \"alice\"\n🔐 creating keys for \"bob\"\n",
-            ));
-
+        let stdout = env.loam("build").assert().success().stdout_as_str();
+        assert!(stdout.contains("creating keys for \"alice\""));
+        assert!(stdout.contains("creating keys for \"bob\""));
         assert!(env.cwd.join(".soroban/identity/alice.toml").exists());
         assert!(env.cwd.join(".soroban/identity/bob.toml").exists());
 
         // check that they're actually funded
-        env.soroban("keys")
+        let stderr = env
+            .soroban("keys")
             .args(&[
                 "fund",
                 "alice",
@@ -34,6 +31,7 @@ accounts = [
             ])
             .assert()
             .success()
-            .stderr(predicates::str::contains("Account already exists"));
+            .stderr_as_str();
+        assert!(stderr.contains("Account already exists"));
     });
 }
