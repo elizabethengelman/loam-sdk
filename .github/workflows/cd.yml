@@ -24,6 +24,7 @@ defaults:
 jobs:
   upload-assets:
     name: ${{ matrix.target }}
+    if: github.repository_owner == 'elizabethengelman'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
