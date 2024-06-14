@@ -4,14 +4,9 @@ permissions:
   # TODO: once `releases: write` is supported, use it instead.
   contents: write
 
-# on:
-#   release:
-#     types: [published]
-
 on:
-  push:
-    branches:
-      - add-release-binaries
+  release:
+    types: [published]
 
 env:
   CARGO_INCREMENTAL: 0
