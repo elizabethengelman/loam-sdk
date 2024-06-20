@@ -32,7 +32,7 @@ function getPlatform() {
 
 export function GithubUrl(): string {
   const [platform, arch] = getPlatform();
-  return `https://github.com/loambuild/loam-sdk/releases/download/v${version}/${NAME}-v${version}-${arch}-${platform}.tar.gz`;
+  return `https://github.com/elizabethengelman/loam-sdk/releases/download/v${version}/${NAME}-v${version}-${arch}-${platform}.tar.gz`;
 }
 
 export function getBinary(name: string = NAME): Promise<Binary> {
